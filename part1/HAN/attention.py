@@ -14,19 +14,19 @@ class Attention(Layer):
         assert len(input_shape) == 3
         self.W = self.add_weight(
             name="W",
-            shape=(int(input_shape[-1]), dim),
+            shape=(int(input_shape[-1]), self.dim),
             initializer=self.init,
             trainable=True,
         )
         self.b = self.add_weight(
             name="b",
-            shape=(self.attention_dim,),
+            shape=(self.dim,),
             initializer='zero',
             trainable=True,
         )
         self.u = self.add_weight(
             name="u",
-            shape=(self.attention_dim, 1),
+            shape=(self.dim, 1),
             initializer=self.init,
             trainable=True,
         )
