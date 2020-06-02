@@ -22,7 +22,7 @@ with open('../data/news_train.tsv', 'r') as f:
         train_label.append(category_map[category])
         train_title.append(title)
         train_abstract.append(abstract)
-        train_text.append(title+abstract)
+        train_text.append(title + "." + abstract)
 test_label = []
 test_title = []
 test_abstract = []
@@ -33,7 +33,7 @@ with open('../data/news_test.tsv', 'r') as f:
         test_label.append(category_map[category])
         test_title.append(title)
         test_abstract.append(abstract)
-        test_text.append(title+abstract)
+        test_text.append(title+ "." + abstract)
 all_texts = train_text + test_text
 all_labels = train_label + test_label
 len_train = len(train_label)
@@ -79,7 +79,7 @@ embedding_layer = Embedding(len(word_index) + 1,
                             EMBEDDING_DIM,
                             weights=[embedding_matrix],
                             input_length=MAX_SEQUENCE_LENGTH,
-                            trainable=False)
+                            trainable=True)#test
 
 print ('(5) training model...')
 from tensorflow.keras.layers import Dense, Input, Flatten, Dropout
@@ -87,7 +87,7 @@ from tensorflow.keras.layers import LSTM
 from tensorflow.keras.models import Sequential
 
 model = Sequential()
-model.add(Embedding(len(word_index) + 1, EMBEDDING_DIM, input_length=MAX_SEQUENCE_LENGTH))
+model.add(embedding_layer)
 model.add(LSTM(200, dropout=0.2, recurrent_dropout=0.2))
 model.add(Dropout(0.2))
 model.add(Dense(labels.shape[1], activation='softmax'))
@@ -97,6 +97,6 @@ model.compile(loss='categorical_crossentropy',
               optimizer='rmsprop',
               metrics=['acc'])
 print(model.metrics_names)
-model.fit(x_train, y_train, epochs=30, batch_size=128)
-print ('(6) testing model...')
-print (model.evaluate(x_test, y_test))
+model.fit(x_train, y_train, epochs=10, batch_size=128, validation_data=(x_test, y_test))
+# print ('(6) testing model...')
+# print (model.evaluate(x_test, y_test))
