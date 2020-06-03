@@ -8,6 +8,7 @@ class TextAttBiRNN(Model):
                  maxlen,
                  max_features,
                  embedding_dims,
+                 embedding_matrix,
                  class_num=1,
                  last_activation='sigmoid'):
         super(TextAttBiRNN, self).__init__()
@@ -16,7 +17,7 @@ class TextAttBiRNN(Model):
         self.embedding_dims = embedding_dims
         self.class_num = class_num
         self.last_activation = last_activation
-        self.embedding = Embedding(self.max_features, self.embedding_dims, input_length=self.maxlen)
+        self.embedding = Embedding(self.max_features, self.embedding_dims, weights=[embedding_matrix], input_length=self.maxlen, trainable=True)
         self.bi_rnn = Bidirectional(GRU(128, return_sequences=True))  # LSTM or GRU
         self.attention = Attention(self.maxlen)
         self.classifier = Dense(self.class_num, activation=self.last_activation)
