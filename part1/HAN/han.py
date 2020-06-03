@@ -1,25 +1,3 @@
-# import numpy as np
-# # import cv2
-# import tensorflow.keras.backend as K
-# import tensorflow as tf
- 
-# t1 = K.variable(np.array([[1, 2, 3,4],[4, 5, 6,7],[1,1,1,2]]))
-# t2 = K.variable(np.array([[7,8,9,10],[10,11,12,13],[1,1,1,3]]))
-# # d1 = K.concatenate([t1 , t2] , axis=1)
-# # d2 = K.concatenate([t1 , t2] , axis=-1)
- 
-# # init = tf.global_variables_initializer()
-# # with tf.Session() as sess:
-# #     sess.run(init)
-# #     print(sess.run(d1))
-# #     print(sess.run(d2))
-# z = K.variable([t1, t2])
-# print(z)
-# z = tf.transpose(z, perm = [1, 0, 2])
-# print(z)
-# # sess=tf.Session()
-# # sess.run(tf.global_variables_initializer())
-# # print(sess.run(z))
 from tensorflow.keras.callbacks import EarlyStopping
 from tensorflow.keras.datasets import imdb
 from tensorflow.keras.preprocessing import sequence
