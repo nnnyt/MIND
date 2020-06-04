@@ -16,11 +16,14 @@ NEG_SAMPLE = 4
 
 def preprocess_user_data(filename):
     # TODO
+    print("Preprocessing user data...")
+
     with open(filename, 'r') as f:
         for l in f:
             userID, time, history, impressions = l.strip('\n').split('\t')
+            history = history.split()
+            impressions = impressions.split()
 
-            
 
 def preprocess_news_data(filename):
     print('Preprocessing news...')
@@ -123,7 +126,9 @@ def get_embedding(word_index):
 
 
 # preprocess_news_data('../../data/MINDsmall_train/news.tsv')
-word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title = preprocess()
+word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title = preprocess_news_data('../../data/MINDsmall_train/news.tsv')
+# word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title = preprocess()
+
 if os.path.exists('embedding_matrix.json'):
     print('Load embedding matrix...')
     embedding_matrix = np.array(read_json())
@@ -186,12 +191,16 @@ news_r = Attention(200)(news_r)
 news_encoder = Model([title_input, abstract_input, category_input, subcategory_input], news_r)
 
 # ----- user encoder -----
+from tensorflow.keras import backend as K
+from tensorflow.keras.layers import Lambda
 browsed_title_input = [Input((MAX_TITLE_LENGTH, ), dtype='int32') for _ in range(MAX_SENTS)]
 browsed_abstract_input = [Input((MAX_ABSTRACT_LENGTH, ), dtype='int32') for _ in range(MAX_SENTS)]
 browsed_category_input = [Input((1, ), dtype='int32') for _ in range(MAX_SENTS)]
 browsed_subcategory_input = [Input((1, ), dtype='int32') for _ in range(MAX_SENTS)]
 browsed_news = [news_encoder([browsed_title_input[i], browsed_abstract_input[i], browsed_category_input[i], browsed_subcategory_input[i]]) for i in range(MAX_SENTS)]
-browsed_news = Concatenate(axis=-2)(browsed_news)
+# browsed_news = Concatenate(axis=-2)(browsed_news)
+browsed_news = Concatenate(axis=-2)([Lambda(lambda x: K.expand_dims(x,axis=1))(news) for news in browsed_news])
+
 user_r = Attention(200)(browsed_news)
 
 # ----- candidate_news -----
@@ -202,11 +211,12 @@ candidate_subcategory_input = [Input((1, ), dtype='int32') for _ in range(1+NEG_
 candidate_r = [news_encoder([candidate_title_input[i], candidate_abstract_input[i], candidate_category_input[i], candidate_subcategory_input[i]]) for i in range(1+NEG_SAMPLE)]
 
 # ----- click predictor -----
-pred = [Dot(axis=-2)([user_r, candidate_r[i]]) for i in range(1+NEG_SAMPLE)]
+pred = [Dot(axes=-1)([user_r, candidate_r[i]]) for i in range(1+NEG_SAMPLE)]
+pred = Concatenate()(pred)
 pred = Activation(activation='softmax')(pred)
 
-model = Model([browsed_title_input, browsed_abstract_input, browsed_category_input, browsed_subcategory_input,
-               candidate_title_input, candidate_abstract_input, candidate_category_input, candidate_subcategory_input
-               ], pred)
+model = Model(browsed_title_input + browsed_abstract_input + browsed_category_input + browsed_subcategory_input +
+               candidate_title_input + candidate_abstract_input + candidate_category_input + candidate_subcategory_input
+               , pred)
 
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
