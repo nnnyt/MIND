@@ -16,7 +16,7 @@ maxlen = 100
 batch_size = 32
 EMBEDDING_DIM = 300
 epochs = 10
-
+# category_map = {'lifestyle': 1, 'health': 2, 'news': 3, 'sports': 4, 'weather': 5, 'entertainment': 6, 'autos': 7, 'travel': 8, 'foodanddrink': 9, 'tv': 10, 'finance': 11, 'movies': 12, 'video': 13, 'music': 14, 'kids': 15, 'middleeast': 16, 'northamerica': 17}
 
 def load_data():
     print("Loading data...")
@@ -27,10 +27,11 @@ def load_data():
     category_map = {}
     with open('../../data/MINDsmall_train/news.tsv', 'r') as f:
         for l in f:
-            _, category, _, title, abstract, _, _ = l.strip('\n').split('\t')
-            if category not in category_map:
-                category_map[category] = len(category_map)
-            labels.append(category_map[category])
+            _, _, subcategory, title, abstract, _, _ = l.strip('\n').split('\t')
+            # labels.append(category_map[category])
+            if subcategory not in category_map:
+                category_map[subcategory] = len(category_map)
+            labels.append(category_map[subcategory])
             title = title.lower()
             abstract = abstract.lower()
             titles.append(title)
