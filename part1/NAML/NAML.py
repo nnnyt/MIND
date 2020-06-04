@@ -7,6 +7,7 @@ import gensim
 import json
 import os
 from attention import Attention
+from sklearn.cross_validation import train_test_split
 
 MAX_TITLE_LENGTH = 30
 MAX_ABSTRACT_LENGTH = 100
@@ -116,6 +117,14 @@ else:
 print('Split train and validation...')
 total = len(news_title)
 train_num = int(0.8 * total)
+
+import random
+random.seed(212)
+random.shuffle(news_category)
+random.seed(212)
+random.shuffle(news_title)
+random.seed(212)
+random.shuffle(news_abstract)
 
 train_category = news_category[:train_num]
 train_title = news_title[:train_num]
