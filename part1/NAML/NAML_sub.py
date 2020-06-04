@@ -33,17 +33,18 @@ def preprocess_news_data(filename):
             # all_texts.append(word_tokenize(abstract))
             all_texts.append(title + ". " + abstract)
             # map every category to a number
-            if category not in category_map:
-                category_map[category] = len(category_map)
+            if subcategory not in category_map:
+                category_map[subcategory] = len(category_map)
             # map every subcategory to a number
             titles.append(title)
             abstracts.append(abstract)
-            categories.append(category)
+            categories.append(subcategory)
             
     tokenizer = Tokenizer()
     tokenizer.fit_on_texts(all_texts)
     word_index = tokenizer.word_index # a dict: word_index[word]=index
     print('Found %s unique tokens.' % len(word_index))
+    print('Found %s unique categories.' % len(category_map))
     # print(word_index)
 
     # title
