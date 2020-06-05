@@ -13,11 +13,10 @@ MAX_TITLE_LENGTH = 30
 MAX_ABSTRACT_LENGTH = 100
 EMBEDDING_DIM = 300
 C_EMBEDDING_DIM = 100
-MAX_SENTS = 50
+MAX_BROWSED = 2
 NEG_SAMPLE = 1
 
 def preprocess_user_data(filename):
-    # TODO
     print("Preprocessing user data...")
     browsed_news = []
     impression_news = []
@@ -170,17 +169,52 @@ all_browsed_news, all_click, all_unclick, all_candidate, all_label = preprocess_
 word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title, news_index = preprocess_news_data('../../data/MINDsmall_train/news.tsv')
 
 # proprocess input
-all_browsed_title = [[ news_title[news_index[j]] for j in i] for i in all_browsed_news]
-all_browsed_abstract = [[ news_abstract[news_index[j]] for j in i] for i in all_browsed_news]
-all_browsed_category = [[ news_category[news_index[j]] for j in i] for i in all_browsed_news]
-all_browsed_subcategory = [[ news_subcategory[news_index[j]] for j in i] for i in all_browsed_news]
-all_candidate_title = [[ news_title[news_index[j]] for j in i] for i in all_candidate]
-all_candidate_abstract = [[ news_abstract[news_index[j]] for j in i] for i in all_candidate]
-all_candidate_category = [[ news_category[news_index[j]] for j in i] for i in all_candidate]
-all_candidate_subcategory = [[ news_subcategory[news_index[j]] for j in i] for i in all_candidate]
+all_browsed_title = np.array([[ np.zeros(MAX_TITLE_LENGTH, dtype='int32')for i in range(MAX_BROWSED)] for _ in all_browsed_news])
+for i, user_browsed in enumerate(all_browsed_news):
+    j = 0
+    for news in user_browsed:
+        if j < MAX_BROWSED:
+            all_browsed_title[i][j] = news_title[news_index[news]]
+        j += 1
+
+all_browsed_abstract = np.array([[ np.zeros(MAX_ABSTRACT_LENGTH, dtype='int32')for i in range(MAX_BROWSED)] for _ in all_browsed_news])
+for i, user_browsed in enumerate(all_browsed_news):
+    j = 0
+    for news in user_browsed:
+        if j < MAX_BROWSED:
+            all_browsed_abstract[i][j] = news_abstract[news_index[news]]
+        j += 1
+
+all_browsed_category = np.array([[ np.zeros(1, dtype='int32')for i in range(MAX_BROWSED)] for _ in all_browsed_news])
+# all_browsed_category = np.zeros((len(all_browsed_news), MAX_BROWSED, 1), dtype='int32')
+for i, user_browsed in enumerate(all_browsed_news):
+    j = 0
+    for news in user_browsed:
+        if j < MAX_BROWSED:
+            all_browsed_category[i][j] = news_category[news_index[news]]
+        j += 1
+
+all_browsed_subcategory = np.array([[ np.zeros(1, dtype='int32')for i in range(MAX_BROWSED)] for _ in all_browsed_news])
+# all_browsed_subcategory = np.zeros((len(all_browsed_news), MAX_BROWSED, 1), dtype='int32')
+for i, user_browsed in enumerate(all_browsed_news):
+    j = 0
+    for news in user_browsed:
+        if j < MAX_BROWSED:
+            all_browsed_subcategory[i][j] = news_subcategory[news_index[news]]
+        j += 1
+            
+# all_browsed_title = [[ news_title[news_index[j]] for j in i] for i in all_browsed_news]
+# all_browsed_abstract = [[ news_abstract[news_index[j]] for j in i] for i in all_browsed_news]
+# all_browsed_category = [[ news_category[news_index[j]] for j in i] for i in all_browsed_news]
+# all_browsed_subcategory = [[ news_subcategory[news_index[j]] for j in i] for i in all_browsed_news]
+all_candidate_title = np.array([[ news_title[news_index[j]] for j in i] for i in all_candidate])
+all_candidate_abstract = np.array([[ news_abstract[news_index[j]] for j in i] for i in all_candidate])
+all_candidate_category = np.array([[ news_category[news_index[j]] for j in i] for i in all_candidate])
+all_candidate_subcategory = np.array([[ news_subcategory[news_index[j]] for j in i] for i in all_candidate])
 
 total = len(all_browsed_title)
 train_num = int(0.8 * total)
+all_label = np.array(all_label)
 train_browsed_title = all_browsed_title[:train_num]
 train_browsed_abstract = all_browsed_abstract[:train_num]
 train_browsed_category = all_browsed_category[:train_num]
@@ -200,6 +234,14 @@ test_candidate_abstract = all_candidate_abstract[train_num:]
 test_candidate_category = all_candidate_category[train_num:]
 test_candidate_subcategory = all_candidate_subcategory[train_num:]
 test_label = all_label[train_num:]
+
+print(len(train_browsed_title))
+print(len(train_browsed_title[0]))
+print(len(train_browsed_title[0][0]))
+print(len(train_browsed_abstract))
+print(len(train_browsed_abstract[0]))
+print(len(train_browsed_abstract[0][0]))
+
 
 if os.path.exists('embedding_matrix.json'):
     print('Load embedding matrix...')
@@ -265,38 +307,98 @@ news_encoder = Model([title_input, abstract_input, category_input, subcategory_i
 # ----- user encoder -----
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Lambda
-browsed_title_input = [Input((MAX_TITLE_LENGTH, ), dtype='int32') for _ in range(MAX_SENTS)]
-browsed_abstract_input = [Input((MAX_ABSTRACT_LENGTH, ), dtype='int32') for _ in range(MAX_SENTS)]
-browsed_category_input = [Input((1, ), dtype='int32') for _ in range(MAX_SENTS)]
-browsed_subcategory_input = [Input((1, ), dtype='int32') for _ in range(MAX_SENTS)]
-browsed_news = [news_encoder([browsed_title_input[i], browsed_abstract_input[i], browsed_category_input[i], browsed_subcategory_input[i]]) for i in range(MAX_SENTS)]
+browsed_title_input = [Input((MAX_TITLE_LENGTH, ), dtype='int32', name='b_t'+str(_)) for _ in range(MAX_BROWSED)]
+browsed_abstract_input = [Input((MAX_ABSTRACT_LENGTH, ), dtype='int32', name='b_a'+str(_)) for _ in range(MAX_BROWSED)]
+browsed_category_input = [Input((1, ), dtype='int32', name='b_c'+str(_)) for _ in range(MAX_BROWSED)]
+browsed_subcategory_input = [Input((1, ), dtype='int32', name='b_sc'+str(_)) for _ in range(MAX_BROWSED)]
+browsed_news = [news_encoder([browsed_title_input[i], browsed_abstract_input[i], browsed_category_input[i], browsed_subcategory_input[i]]) for i in range(MAX_BROWSED)]
 # browsed_news = Concatenate(axis=-2)(browsed_news)
 browsed_news = Concatenate(axis=-2)([Lambda(lambda x: K.expand_dims(x,axis=1))(news) for news in browsed_news])
 
 user_r = Attention(200)(browsed_news)
 
 # ----- candidate_news -----
-candidate_title_input = [Input((MAX_TITLE_LENGTH, ), dtype='int32') for _ in range(1+NEG_SAMPLE)]
-candidate_abstract_input = [Input((MAX_ABSTRACT_LENGTH, ), dtype='int32') for _ in range(1+NEG_SAMPLE)]
-candidate_category_input = [Input((1, ), dtype='int32') for _ in range(1+NEG_SAMPLE)]
-candidate_subcategory_input = [Input((1, ), dtype='int32') for _ in range(1+NEG_SAMPLE)]
+candidate_title_input = [Input((MAX_TITLE_LENGTH, ), dtype='int32', name='c_t'+str(_)) for _ in range(1+NEG_SAMPLE)]
+candidate_abstract_input = [Input((MAX_ABSTRACT_LENGTH, ), dtype='int32', name='c_a'+str(_)) for _ in range(1+NEG_SAMPLE)]
+candidate_category_input = [Input((1, ), dtype='int32', name='c_c'+str(_)) for _ in range(1+NEG_SAMPLE)]
+candidate_subcategory_input = [Input((1, ), dtype='int32',name='c_sc'+str(_)) for _ in range(1+NEG_SAMPLE)]
 candidate_r = [news_encoder([candidate_title_input[i], candidate_abstract_input[i], candidate_category_input[i], candidate_subcategory_input[i]]) for i in range(1+NEG_SAMPLE)]
 
 # ----- click predictor -----
 pred = [Dot(axes=-1)([user_r, candidate_r[i]]) for i in range(1+NEG_SAMPLE)]
 pred = Concatenate()(pred)
 pred = Activation(activation='softmax')(pred)
-
-model = Model(browsed_title_input + browsed_abstract_input + browsed_category_input + browsed_subcategory_input +
-               candidate_title_input + candidate_abstract_input + candidate_category_input + candidate_subcategory_input
+model = Model(browsed_title_input + candidate_title_input + 
+              browsed_abstract_input + candidate_abstract_input + 
+              browsed_category_input + candidate_category_input + 
+              browsed_subcategory_input + candidate_subcategory_input
                , pred)
 
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
+from tensorflow.keras.utils import plot_model
+plot_model(model, to_file='model.png', show_shapes=True)
 print("Train model...")
-model.fit(train_browsed_title+train_browsed_abstract+train_browsed_category+train_browsed_subcategory+
-          train_candidate_title + train_candidate_abstract+train_candidate_category+ train_candidate_subcategory,
+train_data = {}
+for j in range(MAX_BROWSED):
+    train_data['b_t'+str(j)] = []
+    train_data['b_a'+str(j)] = []
+    train_data['b_c'+str(j)] = []
+    train_data['b_sc'+str(j)] = []
+    for i in range(len(train_browsed_title)):
+        train_data['b_t'+str(j)].append(train_browsed_title[i][j])
+        train_data['b_a'+str(j)].append(train_browsed_abstract[i][j])
+        train_data['b_c'+str(j)].append(train_browsed_category[i][j])
+        train_data['b_sc'+str(j)].append(train_browsed_subcategory[i][j])
+    train_data['b_t'+str(j)] = np.array(train_data['b_t'+str(j)])
+    train_data['b_a'+str(j)] = np.array(train_data['b_a'+str(j)])
+    train_data['b_c'+str(j)] = np.array(train_data['b_c'+str(j)])
+    train_data['b_sc'+str(j)] = np.array(train_data['b_sc'+str(j)])
+print(train_data['b_t0'].shape)
+for j in range(1+NEG_SAMPLE):
+    train_data['c_t'+str(j)] = []
+    train_data['c_a'+str(j)] = []
+    train_data['c_c'+str(j)] = []
+    train_data['c_sc'+str(j)] = []
+    for i in range(len(train_candidate_title)):
+        train_data['c_t'+str(j)].append(train_candidate_title[i][j])
+        train_data['c_a'+str(j)].append(train_candidate_abstract[i][j])
+        train_data['c_c'+str(j)].append(train_candidate_category[i][j])
+        train_data['c_sc'+str(j)].append(train_candidate_subcategory[i][j])
+    train_data['c_t'+str(j)] = np.array(train_data['c_t'+str(j)])
+    train_data['c_a'+str(j)] = np.array(train_data['c_a'+str(j)])
+    train_data['c_c'+str(j)] = np.array(train_data['c_c'+str(j)])
+    train_data['c_sc'+str(j)] = np.array(train_data['c_sc'+str(j)])
+
+test_data = {}
+for j in range(MAX_BROWSED):
+    test_data['b_t'+str(j)] = []
+    test_data['b_a'+str(j)] = []
+    test_data['b_c'+str(j)] = []
+    test_data['b_sc'+str(j)] = []
+    for i in range(len(test_browsed_title)):
+        test_data['b_t'+str(j)].append(test_browsed_title[i][j])
+        test_data['b_a'+str(j)].append(test_browsed_abstract[i][j])
+        test_data['b_c'+str(j)].append(test_browsed_category[i][j])
+        test_data['b_sc'+str(j)].append(test_browsed_subcategory[i][j])
+    test_data['b_t'+str(j)] = np.array(test_data['b_t'+str(j)])
+    test_data['b_a'+str(j)] = np.array(test_data['b_a'+str(j)])
+    test_data['b_c'+str(j)] = np.array(test_data['b_c'+str(j)])
+    test_data['b_sc'+str(j)] = np.array(test_data['b_sc'+str(j)])
+for j in range(1+NEG_SAMPLE):
+    test_data['c_t'+str(j)] = []
+    test_data['c_a'+str(j)] = []
+    test_data['c_c'+str(j)] = []
+    test_data['c_sc'+str(j)] = []
+    for i in range(len(test_candidate_title)):
+        test_data['c_t'+str(j)].append(test_candidate_title[i][j])
+        test_data['c_a'+str(j)].append(test_candidate_abstract[i][j])
+        test_data['c_c'+str(j)].append(test_candidate_category[i][j])
+        test_data['c_sc'+str(j)].append(test_candidate_subcategory[i][j])
+    test_data['c_t'+str(j)] = np.array(test_data['c_t'+str(j)])
+    test_data['c_a'+str(j)] = np.array(test_data['c_a'+str(j)])
+    test_data['c_c'+str(j)] = np.array(test_data['c_c'+str(j)])
+    test_data['c_sc'+str(j)] = np.array(test_data['c_sc'+str(j)])
+model.fit(train_data, 
           train_label,
-          validation_data=(test_browsed_title+test_browsed_abstract+test_browsed_category+test_browsed_subcategory+
-                            test_candidate_title+test_candidate_abstract+test_candidate_category+test_candidate_subcategory
-                            , test_label),
+          validation_data=(test_data, test_label),
           epochs=10, batch_size=50)
