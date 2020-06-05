@@ -5,24 +5,61 @@ from nltk.tokenize import word_tokenize
 import gensim
 import json
 import os
+import random
 from attention import Attention
+# from tensorflow.keras.utils import to_categorical
 
 MAX_TITLE_LENGTH = 30
 MAX_ABSTRACT_LENGTH = 100
 EMBEDDING_DIM = 300
 C_EMBEDDING_DIM = 100
 MAX_SENTS = 50
-NEG_SAMPLE = 4
+NEG_SAMPLE = 1
 
 def preprocess_user_data(filename):
     # TODO
     print("Preprocessing user data...")
-
+    browsed_news = []
+    impression_news = []
     with open(filename, 'r') as f:
         for l in f:
             userID, time, history, impressions = l.strip('\n').split('\t')
             history = history.split()
-            impressions = impressions.split()
+            browsed_news.append(history)
+            impressions = [x.split('-') for x in impressions.split()]
+            impression_news.append(impressions)
+    impression_pos = []
+    impression_neg = []
+    for impressions in impression_news:
+        pos = []
+        neg = []
+        for news in impressions:
+            if int(news[1]) == 1:
+                pos.append(news[0])
+            else:
+                neg.append(news[0])
+        impression_pos.append(pos)
+        impression_neg.append(neg)
+    all_browsed_news = []
+    all_click = []
+    all_unclick = []
+    all_candidate = []
+    all_label = []
+    for k in range(len(browsed_news)):
+        browsed = browsed_news[k]
+        pos = impression_pos[k]
+        neg = impression_neg[k]
+        for pos_news in pos:
+            all_browsed_news.append(browsed)
+            all_click.append([pos_news])
+            neg_news = random.sample(neg, NEG_SAMPLE)
+            all_unclick.append(neg_news)
+            all_candidate.append([pos_news]+neg_news)
+            all_label.append([1] + [0] * NEG_SAMPLE)
+            
+    print('original behavior: ', len(browsed_news))
+    print('processed behavior: ', len(all_browsed_news))
+    return all_browsed_news, all_click, all_unclick, all_candidate, all_label
 
 
 def preprocess_news_data(filename):
@@ -34,10 +71,13 @@ def preprocess_news_data(filename):
     abstracts = []
     categories = []
     subcategories = []
+    news_index = {}
 
     with open(filename, 'r') as f:
         for l in f:
             id, category, subcategory, title, abstract, url, entity = l.strip('\n').split('\t')
+            if id not in news_index:
+                news_index[id] = len(news_index)
             title = title.lower()
             abstract = abstract.lower()
             all_texts.append(title + ". " + abstract)
@@ -78,23 +118,24 @@ def preprocess_news_data(filename):
                 news_abstract[i, k] = word_index[word]
                 k = k + 1
     # category & subcategory
+    # news_category = []
     news_category = np.zeros((len(categories), 1), dtype='int32')
     k = 0
     for category in categories:
         news_category[k][0] = category_map[category]
+        # news_category.append(category)
         k += 1
+    # news_category = to_categorical(np.asarray(news_category))
+    # news_subcategory = []
     news_subcategory = np.zeros((len(subcategories), 1), dtype='int32')
     k = 0
     for subcategory in subcategories:
         news_subcategory[k][0] = subcategory_map[subcategory]
+        # news_subcategory.append(subcategory)
         k += 1
+    # news_subcategory = to_categorical(np.asarray(news_subcategory))
 
-    return word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title
-
-def preprocess():
-    preprocess_user_data('../../data/MINDsmall_train/behaviors.tsv')
-    word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title = preprocess_news_data('../../data/MINDsmall_train/news.tsv')
-    return word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title
+    return word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title, news_index
 
 def write_json(embedding_matrix):
     with open('embedding_matrix.json', 'w') as f: 
@@ -125,9 +166,40 @@ def get_embedding(word_index):
     return embedding_matrix
 
 
-# preprocess_news_data('../../data/MINDsmall_train/news.tsv')
-word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title = preprocess_news_data('../../data/MINDsmall_train/news.tsv')
-# word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title = preprocess()
+all_browsed_news, all_click, all_unclick, all_candidate, all_label = preprocess_user_data('../../data/MINDsmall_train/behaviors.tsv')
+word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title, news_index = preprocess_news_data('../../data/MINDsmall_train/news.tsv')
+
+# proprocess input
+all_browsed_title = [[ news_title[news_index[j]] for j in i] for i in all_browsed_news]
+all_browsed_abstract = [[ news_abstract[news_index[j]] for j in i] for i in all_browsed_news]
+all_browsed_category = [[ news_category[news_index[j]] for j in i] for i in all_browsed_news]
+all_browsed_subcategory = [[ news_subcategory[news_index[j]] for j in i] for i in all_browsed_news]
+all_candidate_title = [[ news_title[news_index[j]] for j in i] for i in all_candidate]
+all_candidate_abstract = [[ news_abstract[news_index[j]] for j in i] for i in all_candidate]
+all_candidate_category = [[ news_category[news_index[j]] for j in i] for i in all_candidate]
+all_candidate_subcategory = [[ news_subcategory[news_index[j]] for j in i] for i in all_candidate]
+
+total = len(all_browsed_title)
+train_num = int(0.8 * total)
+train_browsed_title = all_browsed_title[:train_num]
+train_browsed_abstract = all_browsed_abstract[:train_num]
+train_browsed_category = all_browsed_category[:train_num]
+train_browsed_subcategory = all_browsed_subcategory[:train_num]
+train_candidate_abstract = all_candidate_abstract[:train_num]
+train_candidate_title = all_candidate_title[:train_num]
+train_candidate_category = all_candidate_category[:train_num]
+train_candidate_subcategory = all_candidate_subcategory[:train_num]
+train_label = all_label[:train_num]
+
+test_browsed_title = all_candidate_title[train_num:]
+test_browsed_abstract =  all_candidate_abstract[train_num:]
+test_browsed_category = all_candidate_category[train_num:]
+test_browsed_subcategory = all_candidate_subcategory[train_num:]
+test_candidate_title = all_candidate_title[train_num:]
+test_candidate_abstract = all_candidate_abstract[train_num:]
+test_candidate_category = all_candidate_category[train_num:]
+test_candidate_subcategory = all_candidate_subcategory[train_num:]
+test_label = all_label[train_num:]
 
 if os.path.exists('embedding_matrix.json'):
     print('Load embedding matrix...')
@@ -220,3 +292,11 @@ model = Model(browsed_title_input + browsed_abstract_input + browsed_category_in
                , pred)
 
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
+print("Train model...")
+model.fit(train_browsed_title+train_browsed_abstract+train_browsed_category+train_browsed_subcategory+
+          train_candidate_title + train_candidate_abstract+train_candidate_category+ train_candidate_subcategory,
+          train_label,
+          validation_data=(test_browsed_title+test_browsed_abstract+test_browsed_category+test_browsed_subcategory+
+                            test_candidate_title+test_candidate_abstract+test_candidate_category+test_candidate_subcategory
+                            , test_label),
+          epochs=10, batch_size=50)
