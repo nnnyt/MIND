@@ -7,7 +7,6 @@ import json
 import os
 import random
 from attention import Attention
-# from tensorflow.keras.utils import to_categorical
 
 MAX_TITLE_LENGTH = 30
 MAX_ABSTRACT_LENGTH = 100
@@ -117,22 +116,16 @@ def preprocess_news_data(filename):
                 news_abstract[i, k] = word_index[word]
                 k = k + 1
     # category & subcategory
-    # news_category = []
     news_category = np.zeros((len(categories), 1), dtype='int32')
     k = 0
     for category in categories:
         news_category[k][0] = category_map[category]
-        # news_category.append(category)
         k += 1
-    # news_category = to_categorical(np.asarray(news_category))
-    # news_subcategory = []
     news_subcategory = np.zeros((len(subcategories), 1), dtype='int32')
     k = 0
     for subcategory in subcategories:
         news_subcategory[k][0] = subcategory_map[subcategory]
-        # news_subcategory.append(subcategory)
         k += 1
-    # news_subcategory = to_categorical(np.asarray(news_subcategory))
 
     return word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title, news_index
 
@@ -244,10 +237,10 @@ train_candidate_category = all_candidate_category[:train_num]
 train_candidate_subcategory = all_candidate_subcategory[:train_num]
 train_label = all_label[:train_num]
 
-test_browsed_title = all_candidate_title[train_num:]
-test_browsed_abstract =  all_candidate_abstract[train_num:]
-test_browsed_category = all_candidate_category[train_num:]
-test_browsed_subcategory = all_candidate_subcategory[train_num:]
+test_browsed_title = all_browsed_title[train_num:]
+test_browsed_abstract =  all_browsed_abstract[train_num:]
+test_browsed_category = all_browsed_category[train_num:]
+test_browsed_subcategory = all_browsed_subcategory[train_num:]
 test_candidate_title = all_candidate_title[train_num:]
 test_candidate_abstract = all_candidate_abstract[train_num:]
 test_candidate_category = all_candidate_category[train_num:]
