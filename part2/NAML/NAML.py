@@ -13,7 +13,7 @@ MAX_TITLE_LENGTH = 30
 MAX_ABSTRACT_LENGTH = 100
 EMBEDDING_DIM = 300
 C_EMBEDDING_DIM = 100
-MAX_BROWSED = 2
+MAX_BROWSED = 50
 NEG_SAMPLE = 1
 
 def preprocess_user_data(filename):
@@ -212,6 +212,25 @@ all_candidate_abstract = np.array([[ news_abstract[news_index[j]] for j in i] fo
 all_candidate_category = np.array([[ news_category[news_index[j]] for j in i] for i in all_candidate])
 all_candidate_subcategory = np.array([[ news_subcategory[news_index[j]] for j in i] for i in all_candidate])
 
+import random
+random.seed(212)
+random.shuffle(all_browsed_title)
+random.seed(212)
+random.shuffle(all_browsed_abstract)
+random.seed(212)
+random.shuffle(all_browsed_category)
+random.seed(212)
+random.shuffle(all_browsed_subcategory)
+random.seed(212)
+random.shuffle(all_candidate_title)
+random.seed(212)
+random.shuffle(all_candidate_abstract)
+random.seed(212)
+random.shuffle(all_candidate_category)
+random.seed(212)
+random.shuffle(all_candidate_subcategory)
+
+
 total = len(all_browsed_title)
 train_num = int(0.8 * total)
 all_label = np.array(all_label)
@@ -335,8 +354,8 @@ model = Model(browsed_title_input + candidate_title_input +
                , pred)
 
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
-from tensorflow.keras.utils import plot_model
-plot_model(model, to_file='model.png', show_shapes=True)
+# from tensorflow.keras.utils import plot_model
+# plot_model(model, to_file='model.png', show_shapes=True)
 print("Train model...")
 train_data = {}
 for j in range(MAX_BROWSED):
