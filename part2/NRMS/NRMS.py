@@ -73,7 +73,7 @@ def preprocess_user_data(filename):
         data = f.readlines()
     random.seed(212)
     random.shuffle(data)
-    use_num = int(len(data) * 0.01)
+    use_num = int(len(data) * 1)
     use_data = data[:use_num]
     for l in use_data:
         userID, time, history, impressions = l.strip('\n').split('\t')
@@ -120,7 +120,7 @@ def preprocess_test_user_data(filename):
         data = f.readlines()
     random.seed(212)
     random.shuffle(data)
-    use_num = int(len(data) * 0.01)
+    use_num = int(len(data) * 0.1)
     use_data = data[:use_num]
     impression_index = []
     all_browsed_test = []
@@ -276,7 +276,7 @@ for j in range(1):
     test_data['c_t_1'] = np.array(test_data['c_t_1'])
 
 print("Train model...")
-# model.fit(train_data, all_label, epochs=8, batch_size=50)
+model.fit(train_data, all_label, epochs=3, batch_size=50, validation_split=0.1)
 
 print("Tesing model...")
 pred_label = model_test.predict(test_data, verbose=1, batch_size=50)

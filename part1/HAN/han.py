@@ -113,12 +113,12 @@ l_lstm = Bidirectional(GRU(100, return_sequences=True))(embedded_sequences)
 l_att = Attention(100)(l_lstm)
 sentEncoder = Model(sentence_input, l_att)
 
-review_input = Input(shape=(MAX_SENTS, MAX_SEQUENCE_LENGTH), dtype='int32')
-review_encoder = TimeDistributed(sentEncoder)(review_input)
-l_lstm_sent = Bidirectional(GRU(100, return_sequences=True))(review_encoder)
+news_input = Input(shape=(MAX_SENTS, MAX_SEQUENCE_LENGTH), dtype='int32')
+news_encoder = TimeDistributed(sentEncoder)(news_input)
+l_lstm_sent = Bidirectional(GRU(100, return_sequences=True))(news_encoder)
 l_att_sent = Attention(100)(l_lstm_sent)
 preds = Dense(labels.shape[1], activation='softmax')(l_att_sent)
-model = Model(review_input, preds)
+model = Model(news_input, preds)
 
 model.compile(loss='categorical_crossentropy',
               optimizer='rmsprop',
