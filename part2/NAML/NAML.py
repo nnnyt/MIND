@@ -351,7 +351,6 @@ category_embedding_layer = Embedding(len(category_map) + 1,
                                      C_EMBEDDING_DIM,
                                      trainable=True)
 category_embedded = category_embedding_layer(category_input)
-# category_embedded = Flatten()(category_embedded)
 category_dense = Dense(400, activation='relu')(category_embedded)
 category_dense = Reshape((1, 400))(category_dense)
 
@@ -361,7 +360,6 @@ subcategory_embedding_layer = Embedding(len(subcategory_map) + 1,
                                      C_EMBEDDING_DIM,
                                      trainable=True)
 subcategory_embedded = subcategory_embedding_layer(subcategory_input)
-# subcategory_embedded = Flatten(subcategory_embedded)
 subcategory_dense = Dense(400, activation='relu')(subcategory_embedded)
 subcategory_dense = Reshape((1, 400))(subcategory_dense)
 

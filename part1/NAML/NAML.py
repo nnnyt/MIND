@@ -27,10 +27,7 @@ def preprocess_news_data(filename):
         for l in f:
             id, category, subcategory, title, abstract, url, entity = l.strip('\n').split('\t')
             title = title.lower()
-            # print(word_tokenize(title))
             abstract = abstract.lower()
-            # all_texts.append(word_tokenize(title))
-            # all_texts.append(word_tokenize(abstract))
             all_texts.append(title + ". " + abstract)
             # map every category to a number
             if category not in category_map:
