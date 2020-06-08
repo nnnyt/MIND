@@ -105,7 +105,9 @@ def build_news_encoder(word_index, category_map, subcategory_map):
     news_r = Concatenate(axis=-2)([title_attention, abstract_attention, category_dense, subcategory_dense])
     news_r = Attention(200)(news_r)
 
-    news_encoder = Model(news_input, news_r)
+    news_encoder = Model(news_input, news_r, name='news_encoder')
+    # from tensorflow.keras.utils import plot_model
+    # plot_model(news_encoder, to_file='news_encoder.png', show_shapes=True)
     return news_encoder
 
 
@@ -118,22 +120,26 @@ def build_model(word_index, category_map, subcategory_map):
     # ----- user encoder -----
     browsed_input = Input((MAX_BROWSED, MAX_TITLE_LENGTH + MAX_ABSTRACT_LENGTH + 2, ), dtype='int32', name='browsed')
     browsed_news = TimeDistributed(news_encoder)(browsed_input)
-    user_r = Attention(200)(browsed_news)
+
+    user_input = Input((MAX_BROWSED, 400, ), name='user_input')
+    user_r = Attention(200)(user_input)
+    user_encoder = Model(user_input, user_r, name='user_encoder')
+
+    train_user_r = user_encoder(browsed_news)
 
     # ----- candidate_news -----
     candidate_input = Input((1+NEG_SAMPLE, MAX_TITLE_LENGTH + MAX_ABSTRACT_LENGTH + 2, ), dtype='int32', name='candidate')
     candidate_r = TimeDistributed(news_encoder)(candidate_input)
 
-    candidate_one_input = Input((MAX_TITLE_LENGTH + MAX_ABSTRACT_LENGTH + 2, ), dtype='int32', name='candidate_1')
-    candidate_one_r = news_encoder(candidate_one_input)
+    candidate_one_r = Input((400, ), name="candidate_1")
 
     # ----- click predictor -----
-    pred = Dot(axes=-1)([user_r, candidate_r])
+    pred = Dot(axes=-1)([train_user_r, candidate_r])
     pred = Activation(activation='softmax')(pred)
     model = Model([browsed_input, candidate_input], pred)
 
     pred_one = Dot(axes=-1)([user_r, candidate_one_r])
     pred_one = Activation(activation='sigmoid')(pred_one)
-    model_test = Model([browsed_input, candidate_one_input], 
+    model_test = Model([user_input, candidate_one_r], 
                     pred_one)
-    return model, model_test
+    return news_encoder, model, model_test

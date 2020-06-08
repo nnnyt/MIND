@@ -99,61 +99,29 @@ def get_train_input(news_category, news_subcategory, news_abstract, news_title, 
     return all_browsed, all_candidate, all_label
 
 
-def get_test_input(news_category, news_subcategory, news_abstract, news_title, news_index):
+def get_test_input(news_r_test, news_index_test):
     impression_index, all_browsed_test, all_candidate_test, all_label_test = preprocess_test_user_data('../../data/MINDsmall_dev/behaviors.tsv')
-    all_browsed_title_test = np.array([[ np.zeros(MAX_TITLE_LENGTH, dtype='int32')for i in range(MAX_BROWSED)] for _ in all_browsed_test])
+    all_browsed_news_test = np.array([[np.zeros(400, dtype='float32') for i in range(MAX_BROWSED)] for _ in all_browsed_test])
     for i, user_browsed in enumerate(all_browsed_test):
         j = 0
         for news in user_browsed:
             if j < MAX_BROWSED:
-                all_browsed_title_test[i][j] = news_title[news_index[news]]
+                all_browsed_news_test[i][j] = news_r_test[news_index_test[news]]
             j += 1
-
-    all_browsed_abstract_test = np.array([[ np.zeros(MAX_ABSTRACT_LENGTH, dtype='int32')for i in range(MAX_BROWSED)] for _ in all_browsed_test])
-    for i, user_browsed in enumerate(all_browsed_test):
-        j = 0
-        for news in user_browsed:
-            if j < MAX_BROWSED:
-                all_browsed_abstract_test[i][j] = news_abstract[news_index[news]]
-            j += 1
-
-    all_browsed_category_test = np.array([[ np.zeros(1, dtype='int32')for i in range(MAX_BROWSED)] for _ in all_browsed_test])
-    for i, user_browsed in enumerate(all_browsed_test):
-        j = 0
-        for news in user_browsed:
-            if j < MAX_BROWSED:
-                all_browsed_category_test[i][j] = news_category[news_index[news]]
-            j += 1
-
-    all_browsed_subcategory_test = np.array([[ np.zeros(1, dtype='int32')for i in range(MAX_BROWSED)] for _ in all_browsed_test])
-    for i, user_browsed in enumerate(all_browsed_test):
-        j = 0
-        for news in user_browsed:
-            if j < MAX_BROWSED:
-                all_browsed_subcategory_test[i][j] = news_subcategory[news_index[news]]
-            j += 1
-
-    all_browsed_test = np.concatenate((all_browsed_title_test, all_browsed_abstract_test, all_browsed_category_test, all_browsed_subcategory_test), axis=-1)
-    all_candidate_title_test = np.array([news_title[news_index[i[0]]] for i in all_candidate_test])
-    all_candidate_abstract_test = np.array([news_abstract[news_index[i[0]]] for i in all_candidate_test])
-    all_candidate_category_test = np.array([news_category[news_index[i[0]]] for i in all_candidate_test])
-    all_candidate_subcategory_test = np.array([news_subcategory[news_index[i[0]]] for i in all_candidate_test])
-    all_candidate_test = np.concatenate((all_candidate_title_test, all_candidate_abstract_test, all_candidate_category_test, all_candidate_subcategory_test), axis=-1)
+    all_candidate_news_test = np.array([news_r_test[news_index_test[i[0]]] for i in all_candidate_test])
     all_label_test = np.array(all_label_test)
-    return all_browsed_test, all_candidate_test, all_label_test, impression_index
+    return all_browsed_news_test, all_candidate_news_test, all_label_test, impression_index
 
 
 if __name__ == "__main__":
-    word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title, news_index = preprocess_news_data('../../data/MINDsmall_train/news.tsv', '../../data/MINDsmall_dev/news.tsv')
+    word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title, news_index, news_index_test, all_news_test = preprocess_news_data('../../data/MINDsmall_train/news.tsv', '../../data/MINDsmall_dev/news.tsv')
 
     print('Preprocessing trainning input...')
     all_browsed, all_candidate, all_label = get_train_input(news_category, news_subcategory, news_abstract, news_title, news_index)
 
-    print('Preprocessing testing input...')
-    all_browsed_test, all_candidate_test, all_label_test, impression_index = get_test_input(news_category, news_subcategory, news_abstract, news_title, news_index)
-
-    model, model_test = build_model(word_index, category_map, subcategory_map)
+    news_encoder, model, model_test = build_model(word_index, category_map, subcategory_map)
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
+    
     # from tensorflow.keras.utils import plot_model
     # plot_model(model, to_file='model.png', show_shapes=True)
     # plot_model(model_test, to_file='model_test.png', show_shapes=True)
@@ -162,16 +130,22 @@ if __name__ == "__main__":
     train_data['browsed'] = np.array(all_browsed)
     train_data['candidate'] = np.array(all_candidate)
 
-    test_data = {}
-    test_data['browsed'] = np.array(all_browsed_test)
-    test_data['candidate_1'] = np.array(all_candidate_test)
-
     print("Train model...")
     model.fit(train_data, 
             all_label,
             epochs=1, batch_size=50)
 
+    print("Get news representations for test...")
+    news_r_test = news_encoder.predict(all_news_test, verbose=1, batch_size=50)
+    
+    print(type(news_index_test))
     print("Tesing model...")
+    all_browsed_test, all_candidate_test, all_label_test, impression_index = get_test_input(news_r_test, news_index_test)
+    
+    test_data = {}
+    test_data['user_input'] = np.array(all_browsed_test)
+    test_data['candidate_1'] = np.array(all_candidate_test)
+
     pred_label = model_test.predict(test_data, verbose=1, batch_size=50)
     pred_label = np.array(pred_label).reshape(len(pred_label))
     all_label_test = np.array(all_label_test).reshape(len(all_label_test))

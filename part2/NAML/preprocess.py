@@ -117,7 +117,11 @@ def preprocess_news_data(filename, filename_2):
             abstracts.append(abstract)
             categories.append(category)
             subcategories.append(subcategory)
-    
+    news_index_test = {}
+    titles_test = []
+    abstracts_test = []
+    categories_test = []
+    subcategories_test = []
     with open(filename_2, 'r') as f:
         for l in f:
             id, category, subcategory, title, abstract, url, entity = l.strip('\n').split('\t')
@@ -136,6 +140,14 @@ def preprocess_news_data(filename, filename_2):
                 abstracts.append(abstract)
                 categories.append(category)
                 subcategories.append(subcategory)
+            if id not in news_index_test:
+                news_index_test[id] = len(news_index_test)
+                title = title.lower()
+                abstract = abstract.lower()
+                titles_test.append(title)
+                abstracts_test.append(abstract)
+                categories_test.append(category)
+                subcategories_test.append(subcategory)
 
     tokenizer = Tokenizer()
     tokenizer.fit_on_texts(all_texts)
@@ -146,6 +158,7 @@ def preprocess_news_data(filename, filename_2):
 
     # title
     news_title = np.zeros((len(titles), MAX_TITLE_LENGTH), dtype='int32')
+    news_title_test = np.zeros((len(titles_test), MAX_TITLE_LENGTH), dtype='int32')
     for i, title in enumerate(titles):
         wordTokens = text_to_word_sequence(title)
         k = 0
@@ -153,9 +166,17 @@ def preprocess_news_data(filename, filename_2):
             if k < MAX_TITLE_LENGTH:
                 news_title[i, k] = word_index[word]
                 k = k + 1
+    for i, title in enumerate(titles_test):
+        wordTokens = text_to_word_sequence(title)
+        k = 0
+        for _, word in enumerate(wordTokens):
+            if k < MAX_TITLE_LENGTH:
+                news_title_test[i, k] = word_index[word]
+                k = k + 1
     
     # abstract
     news_abstract = np.zeros((len(abstracts), MAX_ABSTRACT_LENGTH), dtype='int32')
+    news_abstract_test = np.zeros((len(abstracts_test), MAX_ABSTRACT_LENGTH), dtype='int32')
     for i, abstract in enumerate(abstracts):
         wordTokens = text_to_word_sequence(abstract)
         k = 0
@@ -163,16 +184,36 @@ def preprocess_news_data(filename, filename_2):
             if k < MAX_ABSTRACT_LENGTH:
                 news_abstract[i, k] = word_index[word]
                 k = k + 1
+    for i, abstract in enumerate(abstracts_test):
+        wordTokens = text_to_word_sequence(abstract)
+        k = 0
+        for _, word in enumerate(wordTokens):
+            if k < MAX_ABSTRACT_LENGTH:
+                news_abstract_test[i, k] = word_index[word]
+                k = k + 1
+
     # category & subcategory
     news_category = np.zeros((len(categories), 1), dtype='int32')
+    news_category_test = np.zeros((len(categories_test), 1), dtype='int32')
     k = 0
     for category in categories:
         news_category[k][0] = category_map[category]
         k += 1
+    k = 0
+    for category in categories_test:
+        news_category_test[k][0] = category_map[category]
+        k += 1
     news_subcategory = np.zeros((len(subcategories), 1), dtype='int32')
+    news_subcategory_test = np.zeros((len(subcategories_test), 1), dtype='int32')
     k = 0
     for subcategory in subcategories:
         news_subcategory[k][0] = subcategory_map[subcategory]
         k += 1
+    k = 0
+    for subcategory in subcategories_test:
+        news_subcategory_test[k][0] = subcategory_map[subcategory]
+        k += 1
 
-    return word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title, news_index
+    all_news_test = np.concatenate((news_title_test, news_abstract_test, news_category_test, news_subcategory_test), axis=-1)
+    # print(all_news_test.shape)
+    return word_index, category_map, subcategory_map, news_category, news_subcategory, news_abstract, news_title, news_index, news_index_test, all_news_test
