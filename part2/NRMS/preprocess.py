@@ -22,6 +22,8 @@ def preprocess_news_data(filename, filename_2):
                 news_index[id] = len(news_index)
                 title = title.lower()
                 titles.append(title)
+    news_index_test = {}
+    titles_test = []
     with open(filename_2, 'r') as f:
         for l in f:
             id, category, subcategory, title, abstract, url, entity = l.strip('\n').split('\t')
@@ -29,6 +31,10 @@ def preprocess_news_data(filename, filename_2):
                 news_index[id] = len(news_index)
                 title = title.lower()
                 titles.append(title)
+            if id not in news_index_test:
+                news_index_test[id] = len(news_index_test)
+                title = title.lower()
+                titles_test.append(title)
     tokenizer = Tokenizer()
     tokenizer.fit_on_texts(titles)
     word_index = tokenizer.word_index # a dict: word_index[word]=index
@@ -36,6 +42,7 @@ def preprocess_news_data(filename, filename_2):
     print('Found %s unique tokens.' % len(word_index))
 
     news_title = np.zeros((len(titles), MAX_TITLE_LENGTH), dtype='int32')
+    news_title_test = np.zeros((len(titles_test), MAX_TITLE_LENGTH), dtype='int32')
     for i, title in enumerate(titles):
         wordTokens = text_to_word_sequence(title)
         k = 0
@@ -43,7 +50,15 @@ def preprocess_news_data(filename, filename_2):
             if k < MAX_TITLE_LENGTH:
                 news_title[i, k] = word_index[word]
                 k = k + 1
-    return news_index, word_index, news_title
+    for i, title in enumerate(titles_test):
+        wordTokens = text_to_word_sequence(title)
+        k = 0
+        for _, word in enumerate(wordTokens):
+            if k < MAX_TITLE_LENGTH:
+                news_title_test[i, k] = word_index[word]
+                k = k + 1
+
+    return news_index, word_index, news_title, news_index_test, news_title_test
 
 
 def preprocess_user_data(filename):
