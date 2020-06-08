@@ -6,6 +6,7 @@ import os
 import random
 from attention import Attention
 from self_attention import SelfAttention
+from preprocess import preprocess_news_data, preprocess_user_data, preprocess_test_user_data
 
 MAX_TITLE_LENGTH = 30
 EMBEDDING_DIM = 300
@@ -30,115 +31,26 @@ def ndcg_score(y_true, y_score, k=10):
     actual = dcg_score(y_true, y_score, k)
     return actual / best
 
-def preprocess_news_data(filename, filename_2):
-    # only use news title
-    print('Preprocessing news...')
-    titles = []
-    news_index = {}
-    with open(filename, 'r') as f:
-        for l in f:
-            id, category, subcategory, title, abstract, url, entity = l.strip('\n').split('\t')
-            if id not in news_index:
-                news_index[id] = len(news_index)
-                title = title.lower()
-                titles.append(title)
-    with open(filename_2, 'r') as f:
-        for l in f:
-            id, category, subcategory, title, abstract, url, entity = l.strip('\n').split('\t')
-            if id not in news_index:
-                news_index[id] = len(news_index)
-                title = title.lower()
-                titles.append(title)
-    tokenizer = Tokenizer()
-    tokenizer.fit_on_texts(titles)
-    word_index = tokenizer.word_index # a dict: word_index[word]=index
-    print('Found %s unique news.' % len(news_index))
-    print('Found %s unique tokens.' % len(word_index))
-
-    news_title = np.zeros((len(titles), MAX_TITLE_LENGTH), dtype='int32')
-    for i, title in enumerate(titles):
-        wordTokens = text_to_word_sequence(title)
-        k = 0
-        for _, word in enumerate(wordTokens):
-            if k < MAX_TITLE_LENGTH:
-                news_title[i, k] = word_index[word]
-                k = k + 1
-    return news_index, word_index, news_title
-
-def preprocess_user_data(filename):
-    print("Preprocessing user data...")
-    browsed_news = []
-    impression_news = []
-    with open(filename, "r") as f:
-        data = f.readlines()
-    random.seed(212)
-    random.shuffle(data)
-    use_num = int(len(data) * 1)
-    use_data = data[:use_num]
-    for l in use_data:
-        userID, time, history, impressions = l.strip('\n').split('\t')
-        history = history.split()
-        browsed_news.append(history)
-        impressions = [x.split('-') for x in impressions.split()]
-        impression_news.append(impressions)
-    impression_pos = []
-    impression_neg = []
-    for impressions in impression_news:
-        pos = []
-        neg = []
-        for news in impressions:
-            if int(news[1]) == 1:
-                pos.append(news[0])
-            else:
-                neg.append(news[0])
-        impression_pos.append(pos)
-        impression_neg.append(neg)
-    all_browsed_news = []
-    all_click = []
-    all_unclick = []
-    all_candidate = []
-    all_label = []
-    for k in range(len(browsed_news)):
-        browsed = browsed_news[k]
-        pos = impression_pos[k]
-        neg = impression_neg[k]
-        for pos_news in pos:
-            all_browsed_news.append(browsed)
-            all_click.append([pos_news])
-            neg_news = random.sample(neg, NEG_SAMPLE)
-            all_unclick.append(neg_news)
-            all_candidate.append([pos_news]+neg_news)
-            all_label.append([1] + [0] * NEG_SAMPLE)
-            
-    print('original behavior: ', len(browsed_news))
-    print('processed behavior: ', len(all_browsed_news))
-    return all_browsed_news, all_click, all_unclick, all_candidate, all_label
-
-def preprocess_test_user_data(filename):
-    print("Preprocessing test user data...")
-    with open(filename, 'r') as f:
-        data = f.readlines()
-    random.seed(212)
-    random.shuffle(data)
-    use_num = int(len(data) * 0.1)
-    use_data = data[:use_num]
-    impression_index = []
-    all_browsed_test = []
-    all_candidate_test = []
-    all_label_test = []
-    for l in use_data:
-        userID, time, history, impressions = l.strip('\n').split('\t')
-        history = history.split()
-        impressions = [x.split('-') for x in impressions.split()]
-        begin = len(all_candidate_test)
-        end = len(impressions) + begin
-        impression_index.append([begin, end])
-        for news in impressions:
-            all_browsed_test.append(history)
-            all_candidate_test.append([news[0]])
-            all_label_test.append([int(news[1])])
-    print('test samples: ', len(all_label_test))
-    return impression_index, all_browsed_test, all_candidate_test, all_label_test
+def evaluate(impression_index, all_label_test, pred_label):
+    from sklearn.metrics import roc_auc_score
+    all_auc = []
+    all_mrr = []
+    all_ndcg5 = []
+    all_ndcg10 = []
+    for i in impression_index:
+        begin = int(i[0])
+        end = int(i[1])
+        auc = roc_auc_score(all_label_test[begin:end], pred_label[begin:end])
+        all_auc.append(auc)
+        mrr = mrr_score(all_label_test[begin:end], pred_label[begin:end])
+        all_mrr.append(mrr)
+        if end - begin > 4:
+            ndcg5 = ndcg_score(all_label_test[begin:end], pred_label[begin:end], 5)
+            all_ndcg5.append(ndcg5)
+            if end - begin > 9:
+                ndcg10 = ndcg_score(all_label_test[begin:end], pred_label[begin:end], 10)
+                all_ndcg10.append(ndcg10)
+    return np.mean(all_auc), np.mean(all_mrr), np.mean(all_ndcg5), np.mean(all_ndcg10)
 
 def write_json(embedding_matrix):
     with open('embedding_matrix.json', 'w') as f: 
@@ -193,7 +105,7 @@ for i, user_browsed in enumerate(all_browsed_test):
             all_browsed_title_test[i][j] = news_title[news_index[news]]
         j += 1
 
-all_candidate_title_test = np.array([[ news_title[news_index[j]] for j in i] for i in all_candidate_test])
+all_candidate_title_test = np.array([news_title[news_index[i[0]]] for i in all_candidate_test])
 all_label_test = np.array(all_label_test)
 
 if os.path.exists('embedding_matrix.json'):
@@ -204,7 +116,7 @@ else:
     write_json(embedding_matrix.tolist())
 
 print('Building model...')
-from tensorflow.keras.layers import Dense, Input, Flatten, Reshape, Dot, Activation
+from tensorflow.keras.layers import Dense, Input, Flatten, Reshape, Dot, Activation, TimeDistributed
 from tensorflow.keras.layers import Conv1D, MaxPooling1D, Embedding, Dropout, LSTM, GRU, Bidirectional, Concatenate
 from tensorflow.keras.models import Model
 embedding_layer = Embedding(len(word_index) + 1,
@@ -225,55 +137,40 @@ news_encoder = Model([title_input], news_r)
 # ----- user encoder -----
 from tensorflow.keras import backend as K
 from tensorflow.keras.layers import Lambda
-browsed_title_input = [Input((MAX_TITLE_LENGTH, ), dtype='int32', name='b_t'+str(_)) for _ in range(MAX_BROWSED)]
-browsed_news = [news_encoder([browsed_title_input[i]]) for i in range(MAX_BROWSED)]
-browsed_news = Concatenate(axis=-2)([Lambda(lambda x: K.expand_dims(x,axis=1))(news) for news in browsed_news])
+browsed_title_input = Input((MAX_BROWSED, MAX_TITLE_LENGTH, ), dtype='int32', name='b_t')
+browsed_news = TimeDistributed(news_encoder)(browsed_title_input)
+browsed_news = SelfAttention(16, 16)([browsed_news, browsed_news, browsed_news])
+browsed_news = Dropout(0.2)(browsed_news)
 user_r = Attention(200)(browsed_news)
 
 # ----- candidate_news -----
-candidate_title_input = [Input((MAX_TITLE_LENGTH, ), dtype='int32', name='c_t'+str(_)) for _ in range(1+NEG_SAMPLE)]
-candidate_r = [news_encoder([candidate_title_input[i]]) for i in range(1+NEG_SAMPLE)]
+candidate_title_input = Input((1+NEG_SAMPLE, MAX_TITLE_LENGTH, ), dtype='int32', name='c_t')
+candidate_r = TimeDistributed(news_encoder)(candidate_title_input)
 
 candidate_one_title_input = Input((MAX_TITLE_LENGTH, ), dtype='int32', name='c_t_1')
 candidate_one_r = news_encoder([candidate_one_title_input])
 
 # ----- click predictor -----
-pred = [Dot(axes=-1)([user_r, candidate_r[i]]) for i in range(1+NEG_SAMPLE)]
-pred = Concatenate()(pred)
+pred = Dot(axes=-1)([user_r, candidate_r])
 pred = Activation(activation='softmax')(pred)
-model = Model(browsed_title_input + candidate_title_input, pred)
+model = Model([browsed_title_input, candidate_title_input], pred)
 
 pred_one = Dot(axes=-1)([user_r, candidate_one_r])
 pred_one = Activation(activation='sigmoid')(pred_one)
-model_test = Model(browsed_title_input + [candidate_one_title_input], pred_one)
+model_test = Model([browsed_title_input, candidate_one_title_input], pred_one)
 
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
-print('Processing trainning data...')
-train_data = {}
-for j in range(MAX_BROWSED):
-    train_data['b_t'+str(j)] = []
-    for i in range(len(all_browsed_title)):
-        train_data['b_t'+str(j)].append(all_browsed_title[i][j])
-    train_data['b_t'+str(j)] = np.array(train_data['b_t'+str(j)])
-print(train_data['b_t0'].shape)
-for j in range(1+NEG_SAMPLE):
-    train_data['c_t'+str(j)] = []
-    for i in range(len(all_candidate_title)):
-        train_data['c_t'+str(j)].append(all_candidate_title[i][j])
-    train_data['c_t'+str(j)] = np.array(train_data['c_t'+str(j)])
 
-print('Processing testing data...')
+# from tensorflow.keras.utils import plot_model
+# plot_model(model, to_file='model.png', show_shapes=True)
+# plot_model(model_test, to_file='model_test.png', show_shapes=True)
+
+train_data = {}
+train_data['b_t'] = np.array(all_browsed_title)
+train_data['c_t'] = np.array(all_candidate_title)
 test_data = {}
-for j in range(MAX_BROWSED):
-    test_data['b_t'+str(j)] = []
-    for i in range(len(all_browsed_title_test)):
-        test_data['b_t'+str(j)].append(all_browsed_title_test[i][j])
-    test_data['b_t'+str(j)] = np.array(test_data['b_t'+str(j)])
-for j in range(1):
-    test_data['c_t_1'] = []
-    for i in range(len(all_candidate_title_test)):
-        test_data['c_t_1'].append(all_candidate_title_test[i][j])
-    test_data['c_t_1'] = np.array(test_data['c_t_1'])
+test_data['b_t'] = np.array(all_browsed_title_test)
+test_data['c_t_1'] = np.array(all_candidate_title_test)
 
 print("Train model...")
 model.fit(train_data, all_label, epochs=3, batch_size=50, validation_split=0.1)
@@ -282,25 +179,8 @@ print("Tesing model...")
 pred_label = model_test.predict(test_data, verbose=1, batch_size=50)
 pred_label = np.array(pred_label).reshape(len(pred_label))
 all_label_test = np.array(all_label_test).reshape(len(all_label_test))
-from sklearn.metrics import roc_auc_score
-all_auc = []
-all_mrr = []
-all_ndcg5 = []
-all_ndcg10 = []
-for i in impression_index:
-    begin = int(i[0])
-    end = int(i[1])
-    auc = roc_auc_score(all_label_test[begin:end], pred_label[begin:end])
-    all_auc.append(auc)
-    mrr = mrr_score(all_label_test[begin:end], pred_label[begin:end])
-    all_mrr.append(mrr)
-    if end - begin > 4:
-        ndcg5 = ndcg_score(all_label_test[begin:end], pred_label[begin:end], 5)
-        all_ndcg5.append(ndcg5)
-        if end - begin > 9:
-            ndcg10 = ndcg_score(all_label_test[begin:end], pred_label[begin:end], 10)
-            all_ndcg10.append(ndcg10)
-print('auc: ', np.mean(all_auc))
-print('mrr: ', np.mean(all_mrr))
-print('ndcg5: ', np.mean(all_ndcg5))
-print('ndcg10: ', np.mean(all_ndcg10))
+auc, mrr, ndcg5, ndcg10 = evaluate(impression_index, all_label_test, pred_label)
+print('auc: ', auc)
+print('mrr: ', mrr)
+print('ndcg5: ', ndcg5)
+print('ndcg10: ', ndcg10)
