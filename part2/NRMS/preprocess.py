@@ -52,7 +52,7 @@ def preprocess_user_data(filename):
         data = f.readlines()
     random.seed(212)
     random.shuffle(data)
-    use_num = int(len(data) * 0.0001)
+    use_num = int(len(data) * 1)
     use_data = data[:use_num]
     for l in use_data:
         userID, time, history, impressions = l.strip('\n').split('\t')
@@ -99,7 +99,7 @@ def preprocess_test_user_data(filename):
         data = f.readlines()
     random.seed(212)
     random.shuffle(data)
-    use_num = int(len(data) * 0.0001)
+    use_num = int(len(data) * 0.1)
     use_data = data[:use_num]
     impression_index = []
     all_browsed_test = []

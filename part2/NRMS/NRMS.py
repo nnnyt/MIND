@@ -108,56 +108,8 @@ for i, user_browsed in enumerate(all_browsed_test):
 all_candidate_title_test = np.array([news_title[news_index[i[0]]] for i in all_candidate_test])
 all_label_test = np.array(all_label_test)
 
-if os.path.exists('embedding_matrix.json'):
-    print('Load embedding matrix...')
-    embedding_matrix = np.array(read_json())
-else:
-    embedding_matrix = get_embedding(word_index)
-    write_json(embedding_matrix.tolist())
-
-print('Building model...')
-from tensorflow.keras.layers import Dense, Input, Flatten, Reshape, Dot, Activation, TimeDistributed
-from tensorflow.keras.layers import Conv1D, MaxPooling1D, Embedding, Dropout, LSTM, GRU, Bidirectional, Concatenate
-from tensorflow.keras.models import Model
-embedding_layer = Embedding(len(word_index) + 1,
-                            EMBEDDING_DIM,
-                            weights=[embedding_matrix],
-                            trainable=True)
-# model
-# ------ news encoder -------
-title_input = Input(shape=(MAX_TITLE_LENGTH,), dtype='int32')
-title_embedded_sequences = embedding_layer(title_input)
-title_embedded_sequences = Dropout(0.2)(title_embedded_sequences)
-title_selfattention = SelfAttention(16, 16)([title_embedded_sequences, title_embedded_sequences, title_embedded_sequences])
-title_selfattention = Dropout(0.2)(title_selfattention)
-news_r = Attention(200)(title_selfattention)
-
-news_encoder = Model([title_input], news_r)
-
-# ----- user encoder -----
-from tensorflow.keras import backend as K
-from tensorflow.keras.layers import Lambda
-browsed_title_input = Input((MAX_BROWSED, MAX_TITLE_LENGTH, ), dtype='int32', name='b_t')
-browsed_news = TimeDistributed(news_encoder)(browsed_title_input)
-browsed_news = SelfAttention(16, 16)([browsed_news, browsed_news, browsed_news])
-browsed_news = Dropout(0.2)(browsed_news)
-user_r = Attention(200)(browsed_news)
-
-# ----- candidate_news -----
-candidate_title_input = Input((1+NEG_SAMPLE, MAX_TITLE_LENGTH, ), dtype='int32', name='c_t')
-candidate_r = TimeDistributed(news_encoder)(candidate_title_input)
-
-candidate_one_title_input = Input((MAX_TITLE_LENGTH, ), dtype='int32', name='c_t_1')
-candidate_one_r = news_encoder([candidate_one_title_input])
-
-# ----- click predictor -----
-pred = Dot(axes=-1)([user_r, candidate_r])
-pred = Activation(activation='softmax')(pred)
-model = Model([browsed_title_input, candidate_title_input], pred)
-
-pred_one = Dot(axes=-1)([user_r, candidate_one_r])
-pred_one = Activation(activation='sigmoid')(pred_one)
-model_test = Model([browsed_title_input, candidate_one_title_input], pred_one)
+from model import build_model
+model, model_test = build_model(word_index)
 
 model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
 
