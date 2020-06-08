@@ -1,23 +1,22 @@
-from tensorflow.keras.preprocessing.text import Tokenizer, text_to_word_sequence
 import numpy as np
-import gensim
-import json
-import os
-import random
 from attention import Attention
 from self_attention import SelfAttention
 from preprocess import preprocess_news_data, preprocess_user_data, preprocess_test_user_data
+from model import build_model
+
 
 MAX_TITLE_LENGTH = 30
 EMBEDDING_DIM = 300
 MAX_BROWSED = 50
 NEG_SAMPLE = 1
 
+
 def mrr_score(y_true, y_score):
     order = np.argsort(y_score)[::-1]
     y_true = np.take(y_true, order)
     rr_score = y_true / (np.arange(len(y_true)) + 1)
     return np.sum(rr_score) / np.sum(y_true)
+
 
 def dcg_score(y_true, y_score, k=10):
     order = np.argsort(y_score)[::-1]
@@ -26,10 +25,12 @@ def dcg_score(y_true, y_score, k=10):
     discounts = np.log2(np.arange(len(y_true)) + 2)
     return np.sum(gains / discounts)
 
+
 def ndcg_score(y_true, y_score, k=10):
     best = dcg_score(y_true, y_true, k)
     actual = dcg_score(y_true, y_score, k)
     return actual / best
+
 
 def evaluate(impression_index, all_label_test, pred_label):
     from sklearn.metrics import roc_auc_score
@@ -52,87 +53,67 @@ def evaluate(impression_index, all_label_test, pred_label):
                 all_ndcg10.append(ndcg10)
     return np.mean(all_auc), np.mean(all_mrr), np.mean(all_ndcg5), np.mean(all_ndcg10)
 
-def write_json(embedding_matrix):
-    with open('embedding_matrix.json', 'w') as f: 
-        json.dump(embedding_matrix, f)
 
-def read_json(file='embedding_matrix.json'):
-    with open(file, 'r') as f:
-        embedding_matrix = json.load(f)
-    return embedding_matrix
+def get_train_input(news_index, news_title):
+    all_browsed_news, all_click, all_unclick, all_candidate, all_label = preprocess_user_data('../../data/MINDsmall_train/behaviors.tsv')
+    print('preprocessing trainning input...')
+    all_browsed_title = np.array([[ np.zeros(MAX_TITLE_LENGTH, dtype='int32')for i in range(MAX_BROWSED)] for _ in all_browsed_news])
+    for i, user_browsed in enumerate(all_browsed_news):
+        j = 0
+        for news in user_browsed:
+            if j < MAX_BROWSED:
+                all_browsed_title[i][j] = news_title[news_index[news]]
+            j += 1
 
-def get_embedding(word_index):
-    # use glove
-    print('Loading glove...')
-    glove_file = "../../glove_model.txt"
-    glove_model = gensim.models.KeyedVectors.load_word2vec_format(glove_file,binary=False) # GloVe Model
-    embedding_matrix = np.zeros((len(word_index) + 1, EMBEDDING_DIM))
-    not_in_model = 0
-    in_model = 0
-    for word, i in word_index.items(): 
-        if word in glove_model:
-            in_model += 1
-            embedding_matrix[i] = np.asarray(glove_model[word], dtype='float32')
-        else:
-            not_in_model += 1
-    print(str(in_model) + ' in glove model')
-    print(str(not_in_model)+' words not in glove model')
-    print('Embedding matrix shape: ', embedding_matrix.shape)
-    return embedding_matrix
+    all_candidate_title = np.array([[ news_title[news_index[j]] for j in i] for i in all_candidate])
+    all_label = np.array(all_label)
+    return all_browsed_title, all_candidate_title, all_label
 
-news_index, word_index, news_title = preprocess_news_data('../../data/MINDsmall_train/news.tsv', '../../data/MINDsmall_dev/news.tsv')
-all_browsed_news, all_click, all_unclick, all_candidate, all_label = preprocess_user_data('../../data/MINDsmall_train/behaviors.tsv')
-impression_index, all_browsed_test, all_candidate_test, all_label_test = preprocess_test_user_data('../../data/MINDsmall_dev/behaviors.tsv')
 
-print('preprocessing trainning input...')
-all_browsed_title = np.array([[ np.zeros(MAX_TITLE_LENGTH, dtype='int32')for i in range(MAX_BROWSED)] for _ in all_browsed_news])
-for i, user_browsed in enumerate(all_browsed_news):
-    j = 0
-    for news in user_browsed:
-        if j < MAX_BROWSED:
-            all_browsed_title[i][j] = news_title[news_index[news]]
-        j += 1
+def get_test_input(news_index, news_title):
+    impression_index, all_browsed_test, all_candidate_test, all_label_test = preprocess_test_user_data('../../data/MINDsmall_dev/behaviors.tsv')
+    print('preprocessing testing input...')
+    all_browsed_title_test = np.array([[ np.zeros(MAX_TITLE_LENGTH, dtype='int32')for i in range(MAX_BROWSED)] for _ in all_browsed_test])
+    for i, user_browsed in enumerate(all_browsed_test):
+        j = 0
+        for news in user_browsed:
+            if j < MAX_BROWSED:
+                all_browsed_title_test[i][j] = news_title[news_index[news]]
+            j += 1
 
-all_candidate_title = np.array([[ news_title[news_index[j]] for j in i] for i in all_candidate])
-all_label = np.array(all_label)
+    all_candidate_title_test = np.array([news_title[news_index[i[0]]] for i in all_candidate_test])
+    all_label_test = np.array(all_label_test)
+    return impression_index, all_browsed_title_test, all_candidate_title_test, all_label_test
 
-print('preprocessing testing input...')
-all_browsed_title_test = np.array([[ np.zeros(MAX_TITLE_LENGTH, dtype='int32')for i in range(MAX_BROWSED)] for _ in all_browsed_test])
-for i, user_browsed in enumerate(all_browsed_test):
-    j = 0
-    for news in user_browsed:
-        if j < MAX_BROWSED:
-            all_browsed_title_test[i][j] = news_title[news_index[news]]
-        j += 1
 
-all_candidate_title_test = np.array([news_title[news_index[i[0]]] for i in all_candidate_test])
-all_label_test = np.array(all_label_test)
+if __name__ == "__main__":
+    news_index, word_index, news_title = preprocess_news_data('../../data/MINDsmall_train/news.tsv', '../../data/MINDsmall_dev/news.tsv')
+    all_browsed_title, all_candidate_title, all_label = get_train_input(news_index, news_title)
+    impression_index, all_browsed_title_test, all_candidate_title_test, all_label_test = get_test_input(news_index, news_title)
 
-from model import build_model
-model, model_test = build_model(word_index)
+    model, model_test = build_model(word_index)
+    model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
 
-model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
+    # from tensorflow.keras.utils import plot_model
+    # plot_model(model, to_file='model.png', show_shapes=True)
+    # plot_model(model_test, to_file='model_test.png', show_shapes=True)
 
-# from tensorflow.keras.utils import plot_model
-# plot_model(model, to_file='model.png', show_shapes=True)
-# plot_model(model_test, to_file='model_test.png', show_shapes=True)
+    train_data = {}
+    train_data['b_t'] = np.array(all_browsed_title)
+    train_data['c_t'] = np.array(all_candidate_title)
+    test_data = {}
+    test_data['b_t'] = np.array(all_browsed_title_test)
+    test_data['c_t_1'] = np.array(all_candidate_title_test)
 
-train_data = {}
-train_data['b_t'] = np.array(all_browsed_title)
-train_data['c_t'] = np.array(all_candidate_title)
-test_data = {}
-test_data['b_t'] = np.array(all_browsed_title_test)
-test_data['c_t_1'] = np.array(all_candidate_title_test)
+    print("Train model...")
+    model.fit(train_data, all_label, epochs=3, batch_size=50, validation_split=0.1)
 
-print("Train model...")
-model.fit(train_data, all_label, epochs=3, batch_size=50, validation_split=0.1)
-
-print("Tesing model...")
-pred_label = model_test.predict(test_data, verbose=1, batch_size=50)
-pred_label = np.array(pred_label).reshape(len(pred_label))
-all_label_test = np.array(all_label_test).reshape(len(all_label_test))
-auc, mrr, ndcg5, ndcg10 = evaluate(impression_index, all_label_test, pred_label)
-print('auc: ', auc)
-print('mrr: ', mrr)
-print('ndcg5: ', ndcg5)
-print('ndcg10: ', ndcg10)
+    print("Tesing model...")
+    pred_label = model_test.predict(test_data, verbose=1, batch_size=50)
+    pred_label = np.array(pred_label).reshape(len(pred_label))
+    all_label_test = np.array(all_label_test).reshape(len(all_label_test))
+    auc, mrr, ndcg5, ndcg10 = evaluate(impression_index, all_label_test, pred_label)
+    print('auc: ', auc)
+    print('mrr: ', mrr)
+    print('ndcg5: ', ndcg5)
+    print('ndcg10: ', ndcg10)

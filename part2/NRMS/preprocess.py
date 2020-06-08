@@ -9,6 +9,7 @@ EMBEDDING_DIM = 300
 MAX_BROWSED = 50
 NEG_SAMPLE = 1
 
+
 def preprocess_news_data(filename, filename_2):
     # only use news title
     print('Preprocessing news...')
@@ -43,6 +44,7 @@ def preprocess_news_data(filename, filename_2):
                 news_title[i, k] = word_index[word]
                 k = k + 1
     return news_index, word_index, news_title
+
 
 def preprocess_user_data(filename):
     print("Preprocessing user data...")
@@ -92,6 +94,7 @@ def preprocess_user_data(filename):
     print('original behavior: ', len(browsed_news))
     print('processed behavior: ', len(all_browsed_news))
     return all_browsed_news, all_click, all_unclick, all_candidate, all_label
+
 
 def preprocess_test_user_data(filename):
     print("Preprocessing test user data...")

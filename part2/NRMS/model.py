@@ -2,24 +2,29 @@ import numpy as np
 import gensim
 import json
 import os
-import random
 from attention import Attention
 from self_attention import SelfAttention
-from preprocess import preprocess_news_data, preprocess_user_data, preprocess_test_user_data
+from tensorflow.keras.layers import Dense, Input, Dot, Activation, TimeDistributed
+from tensorflow.keras.layers import Embedding, Dropout
+from tensorflow.keras.models import Model
+
 
 MAX_TITLE_LENGTH = 30
 EMBEDDING_DIM = 300
 MAX_BROWSED = 50
 NEG_SAMPLE = 1
 
+
 def write_json(embedding_matrix):
     with open('embedding_matrix.json', 'w') as f: 
         json.dump(embedding_matrix, f)
+
 
 def read_json(file='embedding_matrix.json'):
     with open(file, 'r') as f:
         embedding_matrix = json.load(f)
     return embedding_matrix
+
 
 def get_embedding(word_index):
     # use glove
@@ -40,6 +45,7 @@ def get_embedding(word_index):
     print('Embedding matrix shape: ', embedding_matrix.shape)
     return embedding_matrix
 
+
 def get_embedding_matrix(word_index):
     if os.path.exists('embedding_matrix.json'):
         print('Load embedding matrix...')
@@ -49,12 +55,10 @@ def get_embedding_matrix(word_index):
         write_json(embedding_matrix.tolist())
     return embedding_matrix
 
+
 def build_model(word_index):
     embedding_matrix = get_embedding_matrix(word_index)
     print('Building model...')
-    from tensorflow.keras.layers import Dense, Input, Flatten, Reshape, Dot, Activation, TimeDistributed
-    from tensorflow.keras.layers import Conv1D, MaxPooling1D, Embedding, Dropout, LSTM, GRU, Bidirectional, Concatenate
-    from tensorflow.keras.models import Model
     embedding_layer = Embedding(len(word_index) + 1,
                                 EMBEDDING_DIM,
                                 weights=[embedding_matrix],
@@ -69,10 +73,10 @@ def build_model(word_index):
     news_r = Attention(200)(title_selfattention)
 
     news_encoder = Model([title_input], news_r)
+    # from tensorflow.keras.utils import plot_model
+    # plot_model(news_encoder, to_file='news_encoder.png', show_shapes=True)
 
     # ----- user encoder -----
-    from tensorflow.keras import backend as K
-    from tensorflow.keras.layers import Lambda
     browsed_title_input = Input((MAX_BROWSED, MAX_TITLE_LENGTH, ), dtype='int32', name='b_t')
     browsed_news = TimeDistributed(news_encoder)(browsed_title_input)
     browsed_news = SelfAttention(16, 16)([browsed_news, browsed_news, browsed_news])

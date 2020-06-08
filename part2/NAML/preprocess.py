@@ -4,10 +4,12 @@ import json
 import os
 import random
 
+
 MAX_TITLE_LENGTH = 30
 MAX_ABSTRACT_LENGTH = 100
 MAX_BROWSED = 50
 NEG_SAMPLE = 1
+
 
 def preprocess_user_data(filename):
     print("Preprocessing user data...")
@@ -58,6 +60,7 @@ def preprocess_user_data(filename):
     print('processed behavior: ', len(all_browsed_news))
     return all_browsed_news, all_click, all_unclick, all_candidate, all_label
 
+
 def preprocess_test_user_data(filename):
     print("Preprocessing test user data...")
     with open(filename, 'r') as f:
@@ -83,6 +86,7 @@ def preprocess_test_user_data(filename):
             all_label_test.append([int(news[1])])
     print('test samples: ', len(all_label_test))
     return impression_index, all_browsed_test, all_candidate_test, all_label_test
+
 
 def preprocess_news_data(filename, filename_2):
     print('Preprocessing news...')
