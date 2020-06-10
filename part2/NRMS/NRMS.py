@@ -57,7 +57,8 @@ def evaluate(impression_index, all_label_test, pred_label):
 def get_train_input(news_index, news_title):
     all_browsed_news, all_click, all_unclick, all_candidate, all_label = preprocess_user_data('../../data/MINDsmall_train/behaviors.tsv')
     print('preprocessing trainning input...')
-    all_browsed_title = np.array([[ np.zeros(MAX_TITLE_LENGTH, dtype='int32')for i in range(MAX_BROWSED)] for _ in all_browsed_news])
+    all_browsed_title = np.zeros((len(all_browsed_news), MAX_BROWSED, MAX_TITLE_LENGTH), dtype='int32')
+    # all_browsed_title = np.array([[ np.zeros(MAX_TITLE_LENGTH, dtype='int32')for i in range(MAX_BROWSED)] for _ in all_browsed_news])
     for i, user_browsed in enumerate(all_browsed_news):
         j = 0
         for news in user_browsed:
@@ -71,31 +72,34 @@ def get_train_input(news_index, news_title):
 
 
 def get_test_input(news_index_test, news_r_test):
-    impression_index, all_browsed_test, all_candidate_test, all_label_test = preprocess_test_user_data('../../data/MINDsmall_dev/behaviors.tsv')
+    # impression_index, all_browsed_test, all_candidate_test, all_label_test = preprocess_test_user_data('../../data/MINDsmall_dev/behaviors.tsv')
+    impression_index, user_index, user_browsed_test, all_user_test, all_candidate_test, all_label_test = preprocess_test_user_data('../../data/MINDsmall_dev/behaviors.tsv')
     print('preprocessing testing input...')
-    all_browsed_title_test = np.array([[ np.zeros(256, dtype='float32') for i in range(MAX_BROWSED)] for _ in all_browsed_test])
-    for i, user_browsed in enumerate(all_browsed_test):
+    user_browsed_title_test = np.zeros((len(user_browsed_test), MAX_BROWSED, 256), dtype='float32')
+    # user_browsed_title_test = np.array([[ np.zeros(256, dtype='float32') for i in range(MAX_BROWSED)] for _ in user_browsed_test])
+    for i, user_browsed in enumerate(user_browsed_test):
         j = 0
         for news in user_browsed:
             if j < MAX_BROWSED:
-                all_browsed_title_test[i][j] = news_r_test[news_index_test[news]]
+                user_browsed_title_test[i][j] = news_r_test[news_index_test[news]]
             j += 1
     all_candidate_title_test = np.array([news_r_test[news_index_test[i[0]]] for i in all_candidate_test])
     all_label_test = np.array(all_label_test)
-    return impression_index, all_browsed_title_test, all_candidate_title_test, all_label_test
+    return impression_index, user_index, user_browsed_title_test, all_user_test, all_candidate_title_test, all_label_test
 
 
 if __name__ == "__main__":
     news_index, word_index, news_title, news_index_test, news_title_test = preprocess_news_data('../../data/MINDsmall_train/news.tsv', '../../data/MINDsmall_dev/news.tsv')
     all_browsed_title, all_candidate_title, all_label = get_train_input(news_index, news_title)
-    # impression_index, all_browsed_title_test, all_candidate_title_test, all_label_test = get_test_input(news_index, news_title)
 
-    news_encoder, model, model_test = build_model(word_index)
+    news_encoder, user_encoder, model, model_test = build_model(word_index)
     model.compile(loss='categorical_crossentropy', optimizer='adam', metrics=['acc'])
 
-    from tensorflow.keras.utils import plot_model
-    plot_model(model, to_file='model.png', show_shapes=True)
-    plot_model(model_test, to_file='model_test.png', show_shapes=True)
+    # from tensorflow.keras.utils import plot_model
+    # plot_model(model, to_file='model.png', show_shapes=True)
+    # plot_model(model_test, to_file='model_test.png', show_shapes=True)
+    # plot_model(news_encoder, to_file='news_encoder.png', show_shapes=True)
+    # plot_model(user_encoder, to_file='user_encoder.png', show_shapes=True)
 
     train_data = {}
     train_data['b_t'] = np.array(all_browsed_title)
@@ -108,13 +112,18 @@ if __name__ == "__main__":
     news_r_test = news_encoder.predict(news_title_test, verbose=1, batch_size=50)
 
     print("Testing model...")
-    impression_index, all_browsed_title_test, all_candidate_title_test, all_label_test = get_test_input(news_index_test, news_r_test)
+    impression_index, user_index, user_browsed_title_test, all_user_test, all_candidate_title_test, all_label_test = get_test_input(news_index_test, news_r_test)
     # print(len(news_r_test)) 42416
     # print(len(news_r_test[0])) 256
     # print(type(news_r_test[0][0])) float32
+    print("Get user representations...")
+    user_r_test = user_encoder.predict(user_browsed_title_test, verbose=1, batch_size=50)
+    all_user_r_test = np.zeros((len(all_user_test), 256))
+    for i, user in enumerate(all_user_test):
+        all_user_r_test[i] = user_r_test[user_index[user]]
 
     test_data = {}
-    test_data['user_input'] = np.array(all_browsed_title_test)
+    test_data['test_user_r'] = np.array(all_user_r_test)
     test_data['c_t_1'] = np.array(all_candidate_title_test)
 
     pred_label = model_test.predict(test_data, verbose=1, batch_size=50)
