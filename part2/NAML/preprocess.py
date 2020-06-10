@@ -70,22 +70,28 @@ def preprocess_test_user_data(filename):
     use_num = int(len(data) * 0.1)
     use_data = data[:use_num]
     impression_index = []
-    all_browsed_test = []
+    user_browsed_test = []
     all_candidate_test = []
     all_label_test = []
+    user_index = {}
+    all_user_test = []
     for l in use_data:
         userID, time, history, impressions = l.strip('\n').split('\t')
-        history = history.split()
+        if userID not in user_index:
+            user_index[userID] = len(user_index)
+            history = history.split()
+            user_browsed_test.append(history)
         impressions = [x.split('-') for x in impressions.split()]
         begin = len(all_candidate_test)
         end = len(impressions) + begin
         impression_index.append([begin, end])
         for news in impressions:
-            all_browsed_test.append(history)
+            all_user_test.append(userID)
             all_candidate_test.append([news[0]])
             all_label_test.append([int(news[1])])
     print('test samples: ', len(all_label_test))
-    return impression_index, all_browsed_test, all_candidate_test, all_label_test
+    print('Found %s unique users.' % len(user_index))
+    return impression_index, user_index, user_browsed_test, all_user_test, all_candidate_test, all_label_test
 
 
 def preprocess_news_data(filename, filename_2):
