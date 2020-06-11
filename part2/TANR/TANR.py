@@ -116,7 +116,7 @@ if __name__ == "__main__":
     train_label['click_pred'] = all_label
     train_label['topic_pred'] = all_topic_label
 
-    model.fit(train_data, train_label, epochs=5, batch_size=50, validation_split=0.1)
+    model.fit(train_data, train_label, epochs=3, batch_size=64, validation_split=0.1)
 
     print("Get news representations for test...")
     news_r_test = news_encoder.predict(news_title_test, verbose=1, batch_size=50)
