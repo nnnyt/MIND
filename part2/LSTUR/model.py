@@ -98,7 +98,7 @@ def build_news_encoder(word_index, category_map, subcategory_map):
 
 def build_user_encoder(news_encoder, user_index, model_type='ini'):
     browsed_news = Input((MAX_BROWSED, NEWS_R_DIM, ), name='browsed')
-    browsed_news = Masking(mask_value=0.0)(browsed_news)
+    browsed_news_mask = Masking(mask_value=0.0)(browsed_news)
 
     user_input = Input((1, ), dtype='int32', name='user')
     if model_type == 'ini':
@@ -108,7 +108,7 @@ def build_user_encoder(news_encoder, user_index, model_type='ini'):
                                         trainable=True)
         user_long_r = user_embedding_layer(user_input)
         user_long_r = Reshape((USER_R_DIM, ))(user_long_r)
-        user_r = GRU(USER_R_DIM)(browsed_news,initial_state=user_long_r)
+        user_r = GRU(USER_R_DIM)(browsed_news_mask,initial_state=user_long_r)
     else:
         half_dim = int(USER_R_DIM / 2)
         user_embedding_layer = Embedding(len(user_index) + 1,
@@ -117,7 +117,7 @@ def build_user_encoder(news_encoder, user_index, model_type='ini'):
                                         trainable=True)
         user_long_r = user_embedding_layer(user_input)
         user_long_r = Reshape((half_dim, ))(user_long_r)
-        user_r = GRU(half_dim)(browsed_news)
+        user_r = GRU(half_dim)(browsed_news_mask)
         user_r = Concatenate()([user_r, user_long_r])
 
     user_encoder = Model([browsed_news, user_input], user_r, name='user_encoder')
