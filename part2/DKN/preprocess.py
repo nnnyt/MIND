@@ -4,10 +4,10 @@ import json
 import os
 import random
 
-MAX_TITLE_LENGTH = 30
-MAX_ENTITY_LENGTH = 30
+MAX_TITLE_LENGTH = 50
+MAX_ENTITY_LENGTH = 50
 EMBEDDING_DIM = 300
-MAX_BROWSED = 30
+MAX_BROWSED = 50
 NEG_SAMPLE = 1
 
 
@@ -26,12 +26,12 @@ def preprocess_news_data(filename, filename_2):
                 title = title.lower()
                 titles.append(title)
                 entity = json.loads(entity)
-                entity_list = []
+                entity_list = {}
                 for i in entity:
                     if float(i['Confidence']) > 0.8:
                         if i['WikidataId'] not in entity_index:
                             entity_index[i['WikidataId']] = len(entity_index)
-                        entity_list.append(i['WikidataId'])
+                        entity_list[i['WikidataId']] = i['OccurrenceOffsets']
                 all_entity.append(entity_list)
     news_index_test = {}
     titles_test = []
@@ -44,23 +44,23 @@ def preprocess_news_data(filename, filename_2):
                 news_index[id] = len(news_index)
                 title = title.lower()
                 titles.append(title)
-                entity_list = []
+                entity_list = {}
                 for i in entity:
                     if float(i['Confidence']) > 0.8:
                         if i['WikidataId'] not in entity_index:
                             entity_index[i['WikidataId']] = len(entity_index)
-                        entity_list.append(i['WikidataId'])
+                        entity_list[i['WikidataId']] = i['OccurrenceOffsets']
                 all_entity.append(entity_list)
             if id not in news_index_test:
                 news_index_test[id] = len(news_index_test)
                 title = title.lower()
                 titles_test.append(title)
-                entity_list = []
+                entity_list = {}
                 for i in entity:
                     if float(i['Confidence']) > 0.8:
                         if i['WikidataId'] not in entity_index:
                             entity_index[i['WikidataId']] = len(entity_index)
-                        entity_list.append(i['WikidataId'])
+                        entity_list[i['WikidataId']] = i['OccurrenceOffsets']
                 entity_test.append(entity_list)
     tokenizer = Tokenizer()
     tokenizer.fit_on_texts(titles)
@@ -85,20 +85,19 @@ def preprocess_news_data(filename, filename_2):
             if k < MAX_TITLE_LENGTH:
                 news_title_test[i, k] = word_index[word]
             k = k + 1
+
     news_entity = np.zeros((len(all_entity), MAX_ENTITY_LENGTH), dtype='int32')
     news_entity_test = np.zeros((len(entity_test), MAX_ENTITY_LENGTH), dtype='int32')
     for i, entities in enumerate(all_entity):
-        k = 0
-        for entity in entities:
-            if k < MAX_ENTITY_LENGTH:
-                news_entity[i, k] = entity_index[entity]
-            k = k + 1
+        for (entity, offset) in entities.items():
+            for k in offset:
+                if k < MAX_ENTITY_LENGTH:
+                    news_entity[i, k] = entity_index[entity]
     for i, entities in enumerate(entity_test):
-        k = 0
-        for entity in entities:
-            if k < MAX_ENTITY_LENGTH:
-                news_entity_test[i, k] = entity_index[entity]
-            k = k + 1
+        for (entity, offset) in entities.items():
+            for k in offset:
+                if k < MAX_ENTITY_LENGTH:
+                    news_entity_test[i, k] = entity_index[entity]
     news_test = np.concatenate((news_title_test, news_entity_test), axis=-1)
 
     return news_index, word_index, news_title, news_index_test, news_entity, entity_index, news_test

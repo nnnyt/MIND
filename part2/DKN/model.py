@@ -8,15 +8,13 @@ from tensorflow.keras.layers import Embedding, Dropout, Conv1D, Conv2D, Reshape,
 from tensorflow.keras.models import Model
 import tensorflow.keras.backend as K
 import tensorflow.keras as keras
-from attention import Attention
-from self_attention import SelfAttention
 
 
-MAX_TITLE_LENGTH = 30
-MAX_ENTITY_LENGTH = 30
+MAX_TITLE_LENGTH = 50
+MAX_ENTITY_LENGTH = 50
 EMBEDDING_DIM = 300
 ENTITY_DIM = 100
-MAX_BROWSED = 30
+MAX_BROWSED = 50
 NEG_SAMPLE = 1
 
 
@@ -118,17 +116,19 @@ def KCNN(word_index, entity_index):
     return kcnn
 
 
-def build_user_encoder(news_encoder):
+def build_user_encoder():
     browsed_r_input = Input((MAX_BROWSED, 300, ), name='browsed')
     candidate_r_input = Input((300, ), name='candidate')
 
     candidate_news = Reshape((1, 300))(candidate_r_input)
 
-    attention_weight = Lambda(lambda x: x[0] * x[1])([candidate_news, browsed_r_input])
-    ReduceSum = Lambda(lambda z: K.sum(z, axis=-1))
-    attention_weight= ReduceSum(attention_weight)
-    attention_weight = Activation('softmax')(attention_weight)
-    attention_weight = Reshape((MAX_BROWSED,1))(attention_weight)
+    candidate_news = Concatenate(axis=1)([candidate_news] * MAX_BROWSED)
+    concat_news = Concatenate(axis=-1)([candidate_news, browsed_r_input])
+    attention_weight = Dense(64)(concat_news)
+    attention_weight = Dense(1)(attention_weight)
+    attention_weight = Reshape((50, ))(attention_weight)
+    attention_weight = Activation(activation='softmax')(attention_weight)
+    attention_weight = Reshape((50, 1))(attention_weight)
     attention_r = Lambda(lambda x: x[0] * x[1])([attention_weight, browsed_r_input])
     ReduceSum = Lambda(lambda z: K.sum(z, axis=1))
     user_r = ReduceSum(attention_r)
@@ -148,25 +148,23 @@ def build_model(word_index, entity_index):
     candidate_input = Input((MAX_TITLE_LENGTH + MAX_ENTITY_LENGTH, ), dtype='int32', name='candidate')
     candidate_news_r = news_encoder(candidate_input)
 
-    user_encoder = build_user_encoder(news_encoder)
+    user_encoder = build_user_encoder()
 
     train_user_r = user_encoder([browsed_news, candidate_news_r])
 
     test_browsed_input = Input((MAX_BROWSED, 300), name='browsed_test')
-    # test_browsed_input = Input((MAX_BROWSED, 81), name='browsed_test')
-    test_candidate_input = Input((300, ), name='candidate_test')
-    # test_candidate_input = Input((81, ), name='candidate_test')
-    test_user_r = user_encoder([test_browsed_input, test_candidate_input])
+    candidate_one_r = Input((300, ), name="c_t_1")
+    test_user_r = user_encoder([test_browsed_input, candidate_one_r])
 
     # ----- click predictor -----
     pred = Dot(axes=-1)([train_user_r, candidate_news_r])
     pred = Activation(activation='sigmoid')(pred)
 
-    pred_test = Dot(axes=-1)([test_user_r, test_candidate_input])
+    pred_test = Dot(axes=-1)([test_user_r, candidate_one_r])
     pred_test = Activation(activation='sigmoid')(pred_test)
     
     model = Model([browsed_input, candidate_input], pred)
-    model_test = Model([test_browsed_input, test_candidate_input], pred_test)
+    model_test = Model([test_browsed_input, candidate_one_r], pred_test)
 
     return news_encoder, user_encoder, model, model_test
 

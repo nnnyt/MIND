@@ -1,13 +1,14 @@
 import numpy as np
 from preprocess import preprocess_user_data, preprocess_test_user_data, preprocess_news_data
 from model import build_model
+import tensorflow.keras as keras
 
 
-MAX_TITLE_LENGTH = 30
-MAX_ENTITY_LENGTH = 30
+MAX_TITLE_LENGTH = 50
+MAX_ENTITY_LENGTH = 50
 EMBEDDING_DIM = 300
 C_EMBEDDING_DIM = 100
-MAX_BROWSED = 30
+MAX_BROWSED = 50
 
 
 def mrr_score(y_true, y_score):
@@ -83,7 +84,6 @@ def get_test_input(news_r_test, news_index_test):
     impression_index,all_browsed_test, all_candidate_test, all_label_test = preprocess_test_user_data('../../data/MINDsmall_dev/behaviors.tsv')
     
     user_browsed_news_test = np.zeros((len(all_browsed_test), MAX_BROWSED, 300), dtype='float32')
-    # user_browsed_news_test = np.zeros((len(all_browsed_test), MAX_BROWSED, 81), dtype='float32')
     for i, user_browsed in enumerate(all_browsed_test):
         j = 0
         for news in user_browsed:
@@ -111,7 +111,7 @@ if __name__ == "__main__":
     train_data['browsed'] = all_browsed
     train_data['candidate'] = all_candidate
     print("Train model...")
-    model.fit(train_data, all_label, epochs=1, batch_size=16, validation_split=0.1)
+    model.fit(train_data, all_label, epochs=1, batch_size=64, validation_split=0.1)
 
     print("Get news representations for test...")
     news_r_test = news_encoder.predict(news_test, verbose=1, batch_size=64)
@@ -124,7 +124,7 @@ if __name__ == "__main__":
 
     test_data = {}
     test_data['browsed_test'] = user_browsed_news_test
-    test_data['candidate_test'] = all_candidate_news_test
+    test_data['c_t_1'] = all_candidate_news_test
     pred_label = model_test.predict(test_data, verbose=1, batch_size=64)
     pred_label = np.array(pred_label).reshape(len(pred_label))
     all_label_test = np.array(all_label_test).reshape(len(all_label_test))
